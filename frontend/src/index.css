@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-brand-ivory text-brand-charcoal font-sans antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-editorial {
+  font-family: 'Literata', Georgia, serif;
+}
+
+::selection {
+  background-color: rgba(15, 94, 94, 0.15);
+  color: #0f5e5e;
+}
+
+.wave-bar {
+  animation: wavePulse 1.4s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.15s; }
+.wave-bar:nth-child(3) { animation-delay: 0.3s; }
+.wave-bar:nth-child(4) { animation-delay: 0.45s; }
+.wave-bar:nth-child(5) { animation-delay: 0.6s; }
+.wave-bar:nth-child(6) { animation-delay: 0.25s; }
+.wave-bar:nth-child(7) { animation-delay: 0.5s; }
