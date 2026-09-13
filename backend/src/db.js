@@ -43,10 +43,83 @@ db.exec(`
     title TEXT NOT NULL,
     description TEXT,
     image_url TEXT,
+    audio_url TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS routines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL REFERENCES users(id),
+    time TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- A routine definition ("Take medicine at 9:00 AM") is a recurring daily
+  -- template; completing it on a given day is a separate fact. One row
+  -- per (routine, calendar day) actually completed - no row means
+  -- "not done yet" for that day, so nothing here ever needs resetting
+  -- overnight. The date column is the LOCAL calendar day ('YYYY-MM-DD') of
+  -- whoever marked it done, supplied by the client rather than computed
+  -- from the server's clock - see routes/patient.js and
+  -- routes/caregiver.js for why (the server's own timezone would
+  -- otherwise risk a completion landing on the wrong day near midnight).
+  CREATE TABLE IF NOT EXISTS routine_completions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    routine_id INTEGER NOT NULL REFERENCES routines(id),
+    patient_id INTEGER NOT NULL REFERENCES users(id),
+    date TEXT NOT NULL,
+    completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (routine_id, date)
+  );
+
+  -- The Activities/Games *definitions* (title, instructions, category,
+  -- icon, game logic) are a common library shared by every patient and
+  -- live in code, not here (see models/activities.js's ACTIVITY_CATALOG)
+  -- — there is deliberately no per-patient copy of "Who Is This?" to keep
+  -- in sync. Only the two things that genuinely differ per patient are
+  -- persisted: whether a given activity is turned on for them, and a
+  -- light log of when they finished a round of one.
+  CREATE TABLE IF NOT EXISTS activity_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL REFERENCES users(id),
+    activity_type TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (patient_id, activity_type)
+  );
+
+  -- One row per finished round of a game - no score, no right/wrong
+  -- count, just "this happened" (see requirements: light progress like
+  -- "completed 3 activities today", never a percentage/score). The date
+  -- column is the LOCAL calendar day of whoever completed it, same
+  -- client-supplied convention as routine_completions.date, used only
+  -- for the "today" count; completed_at is a real server timestamp for
+  -- ordering a recent-activity view.
+  CREATE TABLE IF NOT EXISTS activity_completions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL REFERENCES users(id),
+    activity_type TEXT NOT NULL,
+    date TEXT NOT NULL,
+    completed_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+// `CREATE TABLE IF NOT EXISTS` above is a no-op against a database file
+// that already has an older `memories` table (from before audio memories
+// existed), so a fresh column has to be migrated in separately for it to
+// show up on an existing install. Safe to run on every boot: it only acts
+// when the column is actually missing.
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+ensureColumn('memories', 'audio_url', 'TEXT');
 
 function seedUser({ username, password, role, display_name }) {
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
@@ -93,5 +166,30 @@ function seedMemories() {
 }
 
 seedMemories();
+
+// Seed the same daily schedule that used to be hardcoded in
+// caregiver.js's mock dashboard payload, now as real, caregiver-editable
+// rows — idempotent the same way seedMemories is. `time` is stored as
+// 24-hour 'HH:MM' so `ORDER BY time` sorts the day correctly; the frontend
+// formats it for display (see frontend/src/utils/formatDate.js).
+function seedRoutines() {
+  const existing = db.prepare('SELECT id FROM routines WHERE patient_id = ? LIMIT 1').get(aitonId);
+  if (existing) return;
+
+  const items = [
+    ['08:00', 'Morning Tea & Breakfast', 'Ginger tea with roasted rice cake'],
+    ['10:30', 'Memory Recall Game', "Granddaughter Rina's orchard photo match"],
+    ['13:00', 'Mid-day Meal & Rest', 'Rest on veranda cane chair'],
+    ['14:00', 'Afternoon Medicine & Warm Tea', 'Taken with daughter-in-law Ban'],
+    ['19:30', 'Evening Blood Pressure Medicine', 'Chime plays on tablet after dinner'],
+  ];
+
+  const insert = db.prepare('INSERT INTO routines (patient_id, time, title, detail) VALUES (?, ?, ?, ?)');
+  for (const [time, title, detail] of items) {
+    insert.run(aitonId, time, title, detail);
+  }
+}
+
+seedRoutines();
 
 module.exports = db;

@@ -27,6 +27,11 @@ const PATHS = {
   elder: 'M12 8a3 3 0 100-6 3 3 0 000 6zM6 21c0-3 2.5-6 6-6s6 3 6 6M9 15l-2 6M15 15l2 6',
   medical: 'M12 8v8m-4-4h8M5 6h14v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6z',
   recordVoice: 'M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 17v3m-3 0h6',
+  close: 'M6 18L18 6M6 6l12 12',
+  playCircle: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0zM10 9l5 3-5 3V9z',
+  chevronLeft: 'M15 19l-7-7 7-7',
+  photo: 'M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16l4-4a2 2 0 012.8 0L16 17M14 13l1.6-1.6a2 2 0 012.8 0L20 13',
+  refresh: 'M4 4v6h6M20 20v-6h-6M4.5 15a8 8 0 0014.5 3.5M19.5 9A8 8 0 005 5.5',
 };
 
 export default function Icon({ name, className = 'w-5 h-5' }) {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, resolveAssetUrl } from '../../api/client.js';
+import AudioRecorder from './AudioRecorder.jsx';
 
 const MEMORY_TYPES = [
   { id: 'photo', label: '📷 Family Photograph' },
@@ -8,42 +9,72 @@ const MEMORY_TYPES = [
   { id: 'song', label: '🎵 Traditional Festival Song' },
 ];
 
+const NEW_PERSON_VALUE = '__new__';
+const NONE_VALUE = '__none__';
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const FRIENDLY_ERROR = "That memory couldn't be saved. Please check the details and try again.";
 
 // The image that "belongs to" a memory depends on its type — a person's
-// photo lives on the family member (family_members.photo_url), everything
-// else (place/voice/song) has no family member and uses the memory's own
-// image_url instead. See backend/src/routes/caregiver.js for the same rule.
+// photo lives on the family member (family_members.photo_url), a "voice"
+// memory's own accompanying photo (if any) and a place/song's image both
+// live on the memory's own image_url. See backend/src/routes/caregiver.js
+// for the same rule.
 function existingImagePathFor(memory) {
   if (!memory) return null;
   return memory.type === 'photo' ? memory.familyMemberPhotoUrl : memory.imageUrl;
 }
 
-// onSubmitMemory: async ({ type, name, relationship, title, description, image, removeImage }) => Promise<memory>
+// 'photo' always needs a person (defaults to "add new"); 'voice' allows
+// "not about anyone in particular" (defaults to none). Switching back to
+// the memory's own original type during an edit restores its real link;
+// switching to any other type starts from that type's sensible default
+// rather than carrying over a selection that might not even apply.
+function defaultFamilyMemberSelectionFor(nextType, editingMemory) {
+  if (editingMemory?.familyMemberId && editingMemory.type === nextType) {
+    return String(editingMemory.familyMemberId);
+  }
+  return nextType === 'voice' ? NONE_VALUE : NEW_PERSON_VALUE;
+}
+
+// onSubmitMemory: async ({ type, familyMemberId, name, relationship, title, description, image, removeImage, audio }) => Promise<memory>
 // Throws on failure — this component only owns form/submission UI state,
 // the actual API call and dashboard refresh live in the parent page.
-// Pass `editingMemory` to open in edit mode instead of create mode — the
-// parent should remount this component (e.g. via a `key` prop) when
-// switching which memory is being edited, so this internal state resets.
-export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patientName, editingMemory }) {
+// Pass `editingMemory` to open in edit mode instead of create mode, and
+// `familyMembers` (the patient's existing people, from the dashboard fetch)
+// so a "photo"/"voice" memory can be attached to one of them by id rather
+// than by re-typing their name — the parent should remount this component
+// (e.g. via a `key` prop) when switching which memory is being
+// edited/created, so this internal state resets.
+export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patientName, editingMemory, familyMembers = [] }) {
   const isEditing = Boolean(editingMemory);
   const existingImagePath = existingImagePathFor(editingMemory);
+  const initialType = editingMemory?.type || 'photo';
 
-  const [type, setType] = useState(editingMemory?.type || 'photo');
-  const [name, setName] = useState(editingMemory?.familyMemberName || '');
-  const [relationship, setRelationship] = useState(editingMemory?.familyMemberRelationship || '');
+  const [type, setType] = useState(initialType);
+  const [familyMemberSelection, setFamilyMemberSelection] = useState(
+    defaultFamilyMemberSelectionFor(initialType, editingMemory),
+  );
+  const [name, setName] = useState(editingMemory?.familyMemberId ? '' : editingMemory?.familyMemberName || '');
+  const [relationship, setRelationship] = useState(
+    editingMemory?.familyMemberId ? '' : editingMemory?.familyMemberRelationship || '',
+  );
   const [title, setTitle] = useState(editingMemory?.title || '');
   const [description, setDescription] = useState(editingMemory?.description || '');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(resolveAssetUrl(existingImagePath));
   const [imageRemoved, setImageRemoved] = useState(false);
+  const [audioFile, setAudioFile] = useState(null);
+  const [audioError, setAudioError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
   const objectUrlRef = useRef(null);
+
+  const showPersonPicker = type === 'photo' || type === 'voice';
+  const isNewPerson = showPersonPicker && familyMemberSelection === NEW_PERSON_VALUE;
+  const existingAudioUrl = type === 'voice' ? resolveAssetUrl(editingMemory?.audioUrl) : null;
 
   // Revoke any object URL we created for a local preview when it's replaced or unmounted.
   useEffect(
@@ -93,6 +124,64 @@ export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patien
     setImageRemoved(true);
   };
 
+  // For a "photo" memory, the uploaded image *is* the selected person's
+  // photo, so switching who it's about should reset the image preview to
+  // that person's own photo (or blank, for "add new person") rather than
+  // keep showing whichever photo happened to be on screen before. A
+  // "voice" memory's optional accompanying photo is independent of who
+  // it's about, so this only touches the image preview for "photo".
+  const handleFamilyMemberChange = (value) => {
+    setFamilyMemberSelection(value);
+    setName('');
+    setRelationship('');
+    if (type !== 'photo') return;
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setImageFile(null);
+    setImageRemoved(false);
+    if (value === NEW_PERSON_VALUE) {
+      setImagePreview(null);
+    } else {
+      const selected = familyMembers.find((member) => String(member.id) === value);
+      setImagePreview(resolveAssetUrl(selected?.photoUrl));
+    }
+  };
+
+  const handleTypeChange = (nextType) => {
+    setType(nextType);
+    setAudioFile(null);
+    setAudioError('');
+    const nextSelection = defaultFamilyMemberSelectionFor(nextType, editingMemory);
+    setFamilyMemberSelection(nextSelection);
+    setName('');
+    setRelationship('');
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setImageFile(null);
+    setImageRemoved(false);
+
+    if (nextType === 'photo') {
+      // A photo memory's image *is* whichever person is now selected.
+      if (nextSelection === NEW_PERSON_VALUE) {
+        setImagePreview(null);
+      } else {
+        const selected = familyMembers.find((member) => String(member.id) === nextSelection);
+        setImagePreview(resolveAssetUrl(selected?.photoUrl));
+      }
+    } else {
+      // voice/place/song: an optional image the memory owns directly —
+      // show the memory's own existing one only if we're back on its
+      // original type, otherwise start blank.
+      const ownImage = editingMemory?.type === nextType ? editingMemory?.imageUrl : null;
+      setImagePreview(resolveAssetUrl(ownImage));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return; // guards against double-submit (e.g. double-click, double Enter)
@@ -103,21 +192,32 @@ export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patien
       setError('Please enter a memory title.');
       return;
     }
-    if (type === 'photo' && !name.trim()) {
+    if (showPersonPicker && isNewPerson && !name.trim()) {
       setError("Please enter the family member's name.");
       return;
     }
+    if (type === 'voice' && !audioFile && !existingAudioUrl) {
+      setError('Please record or upload an audio clip.');
+      return;
+    }
+
+    // '' explicitly clears a voice memory's family-member link; photo
+    // always needs a real person (or the freshly-created one, handled via
+    // name/relationship below), so it never sends the "clear" sentinel.
+    const familyMemberIdToSend = !showPersonPicker || isNewPerson ? undefined : type === 'voice' && familyMemberSelection === NONE_VALUE ? '' : familyMemberSelection;
 
     setIsSubmitting(true);
     try {
       await onSubmitMemory({
         type,
-        name: type === 'photo' ? name.trim() : undefined,
-        relationship: type === 'photo' ? relationship.trim() : undefined,
+        familyMemberId: familyMemberIdToSend,
+        name: showPersonPicker && isNewPerson ? name.trim() : undefined,
+        relationship: showPersonPicker && isNewPerson ? relationship.trim() : undefined,
         title: trimmedTitle,
         description: description.trim() || undefined,
         image: imageFile || undefined,
         removeImage: imageRemoved && !imageFile,
+        audio: type === 'voice' ? audioFile || undefined : undefined,
       });
       onClose();
     } catch (err) {
@@ -158,7 +258,7 @@ export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patien
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() => setType(option.id)}
+                    onClick={() => handleTypeChange(option.id)}
                     className={`p-3 rounded-xl border text-left text-xs font-medium transition disabled:opacity-50 ${
                       type === option.id
                         ? 'border-brand-teal bg-brand-tealSubtle text-brand-teal font-semibold'
@@ -171,6 +271,42 @@ export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patien
               </div>
 
               <div className="space-y-3 text-xs">
+                {showPersonPicker && (
+                  <div>
+                    <label htmlFor="memory-person" className="block font-medium text-brand-charcoal mb-1">
+                      Who is this memory about?
+                    </label>
+                    <select
+                      id="memory-person"
+                      value={familyMemberSelection}
+                      onChange={(e) => handleFamilyMemberChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-border focus:outline-none focus:border-brand-teal disabled:bg-brand-ivory bg-white"
+                    >
+                      {type === 'voice' && <option value={NONE_VALUE}>Not about anyone specific</option>}
+                      {familyMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                          {member.relationship ? ` (${member.relationship})` : ''}
+                        </option>
+                      ))}
+                      <option value={NEW_PERSON_VALUE}>+ Add a new person</option>
+                    </select>
+                  </div>
+                )}
+
+                {type === 'voice' && (
+                  <div>
+                    <label className="block font-medium text-brand-charcoal mb-1">Voice Recording</label>
+                    <AudioRecorder
+                      key={type}
+                      existingAudioUrl={existingAudioUrl}
+                      onAudioChange={setAudioFile}
+                      onError={setAudioError}
+                    />
+                    {audioError && <p className="text-red-600 mt-1.5">{audioError}</p>}
+                  </div>
+                )}
+
                 {/* Image upload/preview */}
                 <div>
                   <label className="block font-medium text-brand-charcoal mb-1">
@@ -216,9 +352,14 @@ export default function AddMemoryModal({ isOpen, onClose, onSubmitMemory, patien
                     onChange={handleFileSelect}
                     className="hidden"
                   />
+                  {type === 'photo' && !isNewPerson && (
+                    <p className="text-[11px] text-brand-slate mt-1.5">
+                      Changing this photo updates it everywhere this person appears.
+                    </p>
+                  )}
                 </div>
 
-                {type === 'photo' && (
+                {showPersonPicker && isNewPerson && (
                   <>
                     <div>
                       <label htmlFor="memory-name" className="block font-medium text-brand-charcoal mb-1">

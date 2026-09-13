@@ -16,7 +16,7 @@ function getPatientUser() {
 const MEMORY_SELECT = `
   SELECT
      m.id, m.patient_id AS patientId, m.family_member_id AS familyMemberId,
-     m.type, m.title, m.description, m.image_url AS imageUrl,
+     m.type, m.title, m.description, m.image_url AS imageUrl, m.audio_url AS audioUrl,
      m.created_at AS createdAt, m.updated_at AS updatedAt,
      fm.name AS familyMemberName, fm.relationship AS familyMemberRelationship,
      fm.photo_url AS familyMemberPhotoUrl
@@ -41,6 +41,14 @@ function getMemoriesForPatient(patientId) {
     .all(patientId);
 }
 
+const FAMILY_MEMBER_SELECT = `
+  SELECT
+     fm.id, fm.patient_id AS patientId, fm.name, fm.relationship,
+     fm.photo_url AS photoUrl, fm.created_at AS createdAt, fm.updated_at AS updatedAt,
+     (SELECT COUNT(*) FROM memories m WHERE m.family_member_id = fm.id) AS memoryCount
+   FROM family_members fm
+`;
+
 // The "people" a patient can be asked to recognize — one row per family
 // member, newest first, independent of how many memories reference them.
 // Ordered by id as well as created_at: SQLite's datetime('now') only has
@@ -50,23 +58,27 @@ function getMemoriesForPatient(patientId) {
 // insertion order instead of leaving it up to SQLite's whim.
 function getFamilyMembersForPatient(patientId) {
   return db
-    .prepare(
-      `SELECT
-         id, patient_id AS patientId, name, relationship,
-         photo_url AS photoUrl, created_at AS createdAt, updated_at AS updatedAt
-       FROM family_members
-       WHERE patient_id = ?
-       ORDER BY created_at DESC, id DESC`,
-    )
+    .prepare(`${FAMILY_MEMBER_SELECT} WHERE fm.patient_id = ? ORDER BY fm.created_at DESC, fm.id DESC`)
     .all(patientId);
 }
 
-function getFamilyMemberByName(patientId, name) {
-  return db.prepare('SELECT * FROM family_members WHERE patient_id = ? AND name = ?').get(patientId, name);
+// Used before any family-member update/delete to confirm the row actually
+// belongs to the caregiver's patient — same ownership convention as
+// getMemoryOwnedByPatient above. This (an id-scoped lookup) is deliberately
+// the *only* way a request can target an existing family member: there is
+// no name-based lookup anymore, since matching people by typed display name
+// is exactly what let a caregiver accidentally create duplicate/orphaned
+// rows (two "Rina"s, or a rename that silently forked a new person).
+function getFamilyMemberOwnedByPatient(id, patientId) {
+  return db.prepare(`${FAMILY_MEMBER_SELECT} WHERE fm.id = ? AND fm.patient_id = ?`).get(id, patientId);
 }
 
+// Unscoped lookup for internal use only, when the id has already been
+// established to belong to the current patient via some other owned row
+// (e.g. a memory's own family_member_id, after the memory itself was
+// confirmed owned) — never for use directly against client-supplied input.
 function getFamilyMemberById(id) {
-  return db.prepare('SELECT * FROM family_members WHERE id = ?').get(id);
+  return db.prepare(`${FAMILY_MEMBER_SELECT} WHERE fm.id = ?`).get(id);
 }
 
 function insertFamilyMember({ patientId, name, relationship, photoUrl }) {
@@ -94,12 +106,32 @@ function updateFamilyMember(id, fields) {
   db.prepare(`UPDATE family_members SET ${sets.join(', ')} WHERE id = ?`).run(...params);
 }
 
-function insertMemory({ patientId, familyMemberId, type, title, description, imageUrl }) {
+// Deletes a family member outright. Callers must first detach any memories
+// that still reference this id (see nullifyFamilyMemberOnMemories) — the
+// `memories.family_member_id` foreign key has no ON DELETE action, so with
+// `PRAGMA foreign_keys = ON` (db.js) a delete while references remain would
+// fail loudly rather than leave anything orphaned.
+function deleteFamilyMember(id) {
+  db.prepare('DELETE FROM family_members WHERE id = ?').run(id);
+}
+
+// Detaches every memory currently pointing at this family member (sets
+// family_member_id to NULL) without touching the memory's own title/
+// description — a memory survives its person being removed, it just stops
+// being "about" anyone in particular. Always call this before
+// deleteFamilyMember for the same id.
+function nullifyFamilyMemberOnMemories(familyMemberId) {
+  db.prepare("UPDATE memories SET family_member_id = NULL, updated_at = datetime('now') WHERE family_member_id = ?").run(
+    familyMemberId,
+  );
+}
+
+function insertMemory({ patientId, familyMemberId, type, title, description, imageUrl, audioUrl }) {
   const result = db
     .prepare(
-      'INSERT INTO memories (patient_id, family_member_id, type, title, description, image_url) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO memories (patient_id, family_member_id, type, title, description, image_url, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(patientId, familyMemberId ?? null, type, title, description ?? null, imageUrl ?? null);
+    .run(patientId, familyMemberId ?? null, type, title, description ?? null, imageUrl ?? null, audioUrl ?? null);
   return Number(result.lastInsertRowid);
 }
 
@@ -111,6 +143,7 @@ function updateMemory(id, fields) {
     title: 'title',
     description: 'description',
     imageUrl: 'image_url',
+    audioUrl: 'audio_url',
   };
   const sets = [];
   const params = [];
@@ -126,16 +159,23 @@ function updateMemory(id, fields) {
   db.prepare(`UPDATE memories SET ${sets.join(', ')} WHERE id = ?`).run(...params);
 }
 
+function deleteMemory(id) {
+  db.prepare('DELETE FROM memories WHERE id = ?').run(id);
+}
+
 module.exports = {
   getPatientUser,
   getMemoryById,
   getMemoryOwnedByPatient,
   getMemoriesForPatient,
   getFamilyMembersForPatient,
-  getFamilyMemberByName,
+  getFamilyMemberOwnedByPatient,
   getFamilyMemberById,
   insertFamilyMember,
   updateFamilyMember,
+  deleteFamilyMember,
+  nullifyFamilyMemberOnMemories,
   insertMemory,
   updateMemory,
+  deleteMemory,
 };

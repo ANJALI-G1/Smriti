@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { images } from '../../assets/landingImages.js';
 import { resolveAssetUrl } from '../../api/client.js';
 import Icon from '../ui/Icon.jsx';
+import { RECALL_RESPONSES } from './memories/recallResponses.js';
 
 // Fallback for names that predate real photo uploads — a caregiver-uploaded
 // image (memory.imageUrl, resolved against the backend origin) always
@@ -10,16 +11,6 @@ const KNOWN_IMAGES = {
   rina: images.rina,
   'wooden veranda garden': images.verandaHills,
 };
-
-// Same three-response interaction as before — only the featured memory
-// itself is now real. Feedback text stays generic (not memory-specific),
-// since tailoring it per memory would need generation logic that's
-// explicitly out of scope for this task.
-const RESPONSES = [
-  { id: 'yes', label: 'Yes, I remember', icon: 'heart', feedback: 'Wonderful! Your heart holds so many bright days.' },
-  { id: 'tell', label: 'Tell me about it', icon: 'recordVoice', feedback: 'Let your family tell you more about this one next time you see them.' },
-  { id: 'unsure', label: "I'm not sure", icon: 'leaf', feedback: "That's completely okay. Let's look together whenever you feel like it." },
-];
 
 function pickFeaturedMemory(memories) {
   if (!memories || memories.length === 0) return null;
@@ -39,6 +30,7 @@ export default function MemoryOfTheDay({ status, memories = [] }) {
     resolveAssetUrl(memory.familyMemberPhotoUrl) ||
     KNOWN_IMAGES[memory.title?.toLowerCase()] ||
     KNOWN_IMAGES[memory.familyMemberName?.toLowerCase()];
+  const audioSrc = memory.type === 'voice' ? resolveAssetUrl(memory.audioUrl) : null;
 
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-8 w-full py-16">
@@ -63,10 +55,15 @@ export default function MemoryOfTheDay({ status, memories = [] }) {
               <p className="font-elderly text-lg text-brand-slate mb-8">
                 {memory.description || 'A memory your family added for you.'}
               </p>
+              {audioSrc && (
+                <div className="mb-8 -mt-4">
+                  <audio controls src={audioSrc} className="w-full h-11" />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-3">
-              {RESPONSES.map((response, i) => (
+              {RECALL_RESPONSES.map((response, i) => (
                 <button
                   key={response.id}
                   type="button"

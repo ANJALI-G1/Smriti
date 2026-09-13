@@ -58,6 +58,10 @@ Actual implemented routes (superseding the earlier speculative sketch — kept f
 /patient    -> Patient Interface (always renders; gated by an in-page
                login modal instead of a redirect — see design system's
                Modal entry above)
+/patient/memories -> Patient Memories gallery (same gating as /patient;
+               shares its auth/header/bottom-nav shell via
+               components/patient/PatientAppShell.jsx rather than
+               duplicating that logic)
 ```
 
 Patient Mode and Caregiver Mode are gated by the `role` on the logged-in user (see architecture.md §4), but via two different mechanisms: the caregiver route redirects when unauthenticated, the patient route overlays a modal. Both reuse the same `AuthContext`/session.
@@ -76,6 +80,7 @@ Patient Mode and Caregiver Mode are gated by the `role` on the logged-in user (s
 | Marketing Landing Page (`/`) | Public-facing editorial page introducing SMRITI, explaining the concept, and routing visitors toward the senior or caregiver experience | P1 | **Implemented** |
 | Login | Simple login — **caregiver only**, behind `/login` | P0 | **Implemented** (behind `/login`; Aiton's login is a modal on the Patient Interface itself, not this page — see below) |
 | Patient Home | Entry point after login; shows today's activity/game and reminders | P0 | **Implemented** (behind `/patient`, always renders; login modal overlay when unauthenticated) |
+| Patient Memories | Filterable gallery of real memories/family members, tap-to-view detail | P1 | **Implemented** (behind `/patient/memories`, reachable via bottom nav) |
 | Game Play Screen | Displays one active cognitive game session, question-by-question | P0 | Partially covered — the recognition card on Patient Home is a real interaction but uses one fixed prompt, not AI-generated games (see implementation.md C-T6) |
 | Game Result Screen | Shows encouraging feedback after a session ends | P0 | Awaiting page specification |
 | Caregiver Dashboard | Shows engagement stats, performance trends, alerts | P0 | **Implemented** (behind `/caregiver`, protected route) |

@@ -5,7 +5,7 @@ const TABS = [
   { id: 'me', label: 'Me' },
 ];
 
-export default function PatientBottomNav({ onSelectTab }) {
+export default function PatientBottomNav({ activeTab = 'home', onSelectTab }) {
   return (
     <footer className="fixed bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
       <div className="pointer-events-auto bg-white/95 backdrop-blur-xl shadow-elevated rounded-full px-2 py-2 max-w-md w-full">
@@ -15,8 +15,9 @@ export default function PatientBottomNav({ onSelectTab }) {
               key={tab.id}
               type="button"
               onClick={() => onSelectTab(tab.id)}
+              aria-current={tab.id === activeTab ? 'page' : undefined}
               className={`flex-1 py-2.5 px-3 rounded-full transition-all font-elderly text-base ${
-                tab.id === 'home'
+                tab.id === activeTab
                   ? 'bg-brand-tealSubtle text-brand-teal font-bold shadow-sm'
                   : 'text-brand-slate hover:bg-brand-surface hover:text-brand-charcoal'
               }`}

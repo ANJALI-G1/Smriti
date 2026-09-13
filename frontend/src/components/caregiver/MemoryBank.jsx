@@ -60,7 +60,7 @@ function MemoryThumbnail({ src, name }) {
   );
 }
 
-export default function MemoryBank({ memories, onShowToast, onEdit }) {
+export default function MemoryBank({ memories, onAddNew, onEdit, onDelete }) {
   return (
     <section>
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
@@ -70,7 +70,7 @@ export default function MemoryBank({ memories, onShowToast, onEdit }) {
         </div>
         <button
           type="button"
-          onClick={() => onShowToast('Add memory form is below — use the floating button.')}
+          onClick={onAddNew}
           className="text-xs font-semibold text-brand-teal hover:underline flex items-center gap-1"
         >
           + Add memory
@@ -99,56 +99,61 @@ export default function MemoryBank({ memories, onShowToast, onEdit }) {
           const dateLabel = formatDate(memory.createdAt);
           const thumbnailSrc = thumbnailFor(memory, displayName);
 
+          const audioSrc = memory.type === 'voice' ? resolveAssetUrl(memory.audioUrl) : null;
+
           return (
             <div
               key={memory.id}
-              className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-brand-ivory transition border border-brand-border/60 group gap-3"
+              className="p-2.5 rounded-2xl hover:bg-brand-ivory transition border border-brand-border/60 group"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <MemoryThumbnail src={thumbnailSrc} name={displayName} />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h5 className="text-xs font-bold text-brand-charcoal">{displayName}</h5>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TYPE_BADGE[memory.type]}`}>
-                      {TYPE_LABEL[memory.type]}
-                    </span>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <MemoryThumbnail src={thumbnailSrc} name={displayName} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h5 className="text-xs font-bold text-brand-charcoal">{displayName}</h5>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TYPE_BADGE[memory.type]}`}>
+                        {TYPE_LABEL[memory.type]}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-brand-slate truncate">{detail}</p>
+                    {dateLabel && <p className="text-[10px] text-brand-slate mt-0.5">Added {dateLabel}</p>}
                   </div>
-                  <p className="text-[11px] text-brand-slate truncate">{detail}</p>
-                  {dateLabel && <p className="text-[10px] text-brand-slate mt-0.5">Added {dateLabel}</p>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    title="Edit memory"
+                    onClick={() => onEdit(memory)}
+                    className="p-2 rounded-lg text-brand-slate hover:text-brand-teal hover:bg-brand-tealSubtle transition"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete memory"
+                    onClick={() => onDelete(memory)}
+                    className="p-2 rounded-lg text-brand-slate hover:text-red-600 hover:bg-red-50 transition"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  title="Edit memory"
-                  onClick={() => onEdit(memory)}
-                  className="p-2 rounded-lg text-brand-slate hover:text-brand-teal hover:bg-brand-tealSubtle transition"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  title="Play cultural voice clue"
-                  onClick={() => onShowToast(`Playing SMRITI's gentle voice hint for "${displayName}".`)}
-                  className="p-2 rounded-lg text-brand-teal hover:bg-brand-tealSubtle transition"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-                    />
-                  </svg>
-                </button>
-              </div>
+              {audioSrc && <audio controls src={audioSrc} className="w-full h-8 mt-2" />}
             </div>
           );
         })}

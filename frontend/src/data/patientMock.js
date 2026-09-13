@@ -1,21 +1,14 @@
 // Seeded/mock content for the Patient interface sections that are still
-// out of scope (memory ribbon, daily rhythm, rituals, contacts, voice
-// prompts). RecognitionGame and MemoryOfTheDay no longer use this file —
-// they're backed by real data from GET /api/patient/memories instead.
+// out of scope (memory ribbon, rituals, contacts, voice prompts).
+// RecognitionGame, MemoryOfTheDay, and DailyRhythm no longer use this
+// file — they're backed by real data from GET /api/patient/memories and
+// GET /api/patient/routines instead.
 
 export const memoryKeepsakes = [
   { id: 'rina', type: 'Person', title: 'Rina', detail: 'Your daughter · Visits with fresh apples', imageKey: 'rina', actionLabel: 'View photo' },
   { id: 'veranda', type: 'Place', title: 'My Veranda', detail: 'A place you love · Orchids in morning sun', imageKey: 'verandaHills', actionLabel: 'View place' },
   { id: 'hearth', type: 'Gathering', title: 'Sunday Hearth', detail: 'All the children together around the warm hearth', imageKey: 'heroAiton', actionLabel: 'View gathering' },
   { id: 'hymn', type: 'Audio', title: 'Autumn Choir', detail: 'Familiar Khasi choir hymn from Mawkhar Church', actionLabel: 'Listen now' },
-];
-
-export const dailyRhythm = [
-  { id: 'morning', label: 'Morning', detail: 'Warm ginger tea & rice cake', note: 'Completed peacefully', state: 'done' },
-  { id: 'now', label: 'Now', detail: 'Remember something familiar', note: 'Active quiet moment', state: 'active' },
-  { id: '1pm', label: '1:00 PM', detail: 'Fresh spring water & veranda rest', note: 'Resting time', state: 'upcoming' },
-  { id: '230pm', label: '2:30 PM', detail: 'Afternoon tea & medicine tablet', note: 'Ban will assist', state: 'upcoming' },
-  { id: '5pm', label: '5:00 PM', detail: 'Sunset over Umiam lake', note: 'Quiet balcony view', state: 'sunset' },
 ];
 
 export const rituals = [

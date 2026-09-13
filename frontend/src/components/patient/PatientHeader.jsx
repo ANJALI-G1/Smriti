@@ -1,9 +1,18 @@
 import { images } from '../../assets/landingImages.js';
 import Icon from '../ui/Icon.jsx';
 
-export default function PatientHeader({ patientName, isAuthenticated, onLogout, onShowToast }) {
+export default function PatientHeader({
+  patientName,
+  isAuthenticated,
+  onLogout,
+  onShowToast,
+  offsetTop = false,
+  logoutLabel = 'Log out',
+}) {
   return (
-    <header className="fixed top-0 inset-x-0 z-30 bg-brand-ivory/90 backdrop-blur-xl shadow-sm">
+    <header
+      className={`fixed inset-x-0 z-30 bg-brand-ivory/90 backdrop-blur-xl shadow-sm ${offsetTop ? 'top-9' : 'top-0'}`}
+    >
       <div className="h-20 max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-brand-teal text-white flex items-center justify-center shrink-0">
@@ -47,7 +56,7 @@ export default function PatientHeader({ patientName, isAuthenticated, onLogout, 
               onClick={onLogout}
               className="text-xs font-semibold text-brand-slate hover:text-brand-teal underline underline-offset-2 shrink-0"
             >
-              Log out
+              {logoutLabel}
             </button>
           )}
         </div>
