@@ -5,7 +5,7 @@ export default {
     extend: {
       colors: {
         brand: {
-          ivory: '#FBF7F1',
+          ivory: '#f4e7d2',
           card: '#FFFFFF',
           surface: '#F4EFE6',
           teal: '#0F5E5E',
